@@ -1,0 +1,50 @@
+﻿using System;using System.Collections.Generic;using System.Net.Http;using System.Text;using System.Threading.Tasks;using Newtonsoft.Json;using Newtonsoft.Json.Linq;using OpenAI_API;using OpenAI_API.Completions;class Program{    private static readonly HttpClient httpClient = new HttpClient();    private static readonly string slackApiUrl = "https://slack.com/api/chat.postMessage";    //IMPORTANT    //*********    // Below all fileds are mandatory     //Below is slaack API token     private static readonly string slackApiToken = "";
+    //Below is channel ID
+    private static readonly string channelId = "";
+    //OpenAI ChatGPT API token
+    private const string ChatGptApiToken = "";
+    //Source Stack Api Url
+    private static readonly string SourceStackApiUrl = "";    public static void Main()    {        try        {
+            // Schedule the job to run every hour
+            var schedule = new System.Threading.Timer(_ => PostRandomJobOpening(), null, TimeSpan.Zero, TimeSpan.FromHours(1));            Console.WriteLine("Bot running. Press any key to exit...");            Console.ReadLine();
+
+            // Stop the timer when done
+            schedule.Dispose();        }        catch (Exception ex)        {            Console.WriteLine("An error occurred: " + ex.Message);        }    }    //Below method for posting Job Opening and cover letter to slack    static async void PostRandomJobOpening()    {        try        {
+            // Fetch job opening data from SourceStack's API
+            var jobData = await FetchJobOpeningsFromSourceStack();            if (jobData != null && jobData.Count > 0)            {
+                // Select a random job opening
+                var random = new Random();                var randomJob = jobData[random.Next(jobData.Count)];
+                
+                // Compose the Slack message with the job opening details
+                var message = "";                //IMPORTANT VALIDATION                //*********************                if (randomJob["company_name"].ToString() != null && randomJob["company_name"].ToString() != "")                {                    message += $":star: {"Exiting Job Opportunity"} :* Join {randomJob["company_name"]}!* :star:\n"; // Add emoji and bold formatting" +
+
+                }                if (randomJob["job_name"].ToString() != null && randomJob["job_name"].ToString() != "")                {                    message += $"\n*{"Job Opening"}:* {randomJob["job_name"]} ";                }                if (randomJob["hours"].ToString() != null && randomJob["hours"].ToString() != "")                {                    message += $"\n*{"Job Type"}:* Full-Time ";                }                if (randomJob["company_name"].ToString() != null && randomJob["company_name"].ToString() != "")                {                    message += $"\n*{"Company Name"}:* {randomJob["company_name"]} ";                }                if (randomJob["job_location"].ToString() != null && randomJob["job_location"].ToString() != "")                {                    message += $"\n*{"Job Location"}:* {randomJob["job_location"]} ";                }                if (randomJob["department"].ToString() != null && randomJob["department"].ToString() != "")                {                    message += $"\n*{"Department"}:* {randomJob["department"]} ";                }                var skillList = "";                if (randomJob["tags_matched"].HasValues)                {
+
+                    var jn = Newtonsoft.Json.JsonConvert.DeserializeObject<List<string>>(randomJob["tags_matched"].ToString());
+
+                    if (jn.Count > 0)                    {                        for (int i = 0; i < jn.Count; i++)                        {                            if (i > 1)                            {                                skillList += ", " + jn[i];                            }                            else                            {                                skillList += jn[i];                            }                        }                    }                    message += $"\n*{"Required Skills" } : * {skillList} ";                }                var teckStackList = "";                if (randomJob["tag_categories"].HasValues)                {                    var jn = Newtonsoft.Json.JsonConvert.DeserializeObject<List<string>>(randomJob["tag_categories"].ToString());
+
+                    if (jn.Count > 0)                    {                        for (int i = 0; i < jn.Count; i++)                        {                            if (i > 1)                            {                                teckStackList += ", " + jn[i];                            }                            else                            {                                teckStackList += jn[i];                            }                        }                    }                    message += $"\n*{"Required Technologies"} : * {teckStackList} ";                }
+
+
+                if (randomJob["last_indexed"] != null)                {                    DateTime lastDate = Convert.ToDateTime(randomJob["last_indexed"].ToString());                    var lstDate = lastDate.ToString("yyyy-MMM-dd");                    message += $"\n*{"Application Last Date"} : * {lstDate} ";                }
+
+
+                var coverMessage = " Please create cover letter for bellow job posting \n ";                if (randomJob["company_name"].ToString() != null && randomJob["company_name"].ToString() != "")                {                    coverMessage += "As a lifelong enthusiast of " + $"{"Company Name"}: {randomJob["company_name"]}, ";                }
+                if (randomJob["job_name"].ToString() != null && randomJob["job_name"].ToString() != "")                {                    coverMessage += "I was thrilled to see your posting for the position of" + $" {randomJob["job_name"]}.";                }                if (randomJob["company_name"].ToString() != null && randomJob["company_name"].ToString() != "")                {                    coverMessage += " I am positive I can help with " + $" {randomJob["company_name"]}'s  upcoming challenges.";                }                if (randomJob["job_location"].ToString() != null && randomJob["job_location"].ToString() != "")                {                    coverMessage += " I am Okay with Company Location " + $" {randomJob["job_location"]} ";                }
+
+
+                if (randomJob["tags_matched"].HasValues)                {                    coverMessage += " I have knowledge and good experience on these skills " + $"\n{"Required Skills"}: {skillList}.";                }                if (randomJob["tag_categories"].HasValues)                {                    coverMessage += " I have knowledge and good experience on these skills " + $"\n{"Required Technologies"}: {teckStackList}.";                }                string generatedCoverletter = $"*{"YOU CAN USE BELOW COVER LETTER CREATED BY AI"} : * " + GenerateResumeAndCoverLetter(coverMessage);
+
+                //Below line of code posting job opening to slack
+                await PostMessageToSlack(message);                //Below line of code posting cover letter to slack                await PostMessageToSlack(generatedCoverletter);            }            else            {                Console.WriteLine("jobData is null");            }        }        catch (Exception ex)        {            Console.WriteLine("An error occurred: " + ex.Message);        }    }    //Below method for Fetching Random Job Postings     static async Task<JArray> FetchJobOpeningsFromSourceStack()    {        
+
+        // Make an HTTP GET request to SourceStack's API and deserialize the response
+        var response = await httpClient.GetAsync(SourceStackApiUrl);        response.EnsureSuccessStatusCode();        var responseBody = await response.Content.ReadAsStringAsync();        var jsonResponse = JObject.Parse(responseBody);        var jobData = jsonResponse["data"] as JArray;        return jobData;    }    //Below Method for posting Message to Slack    static async Task PostMessageToSlack(string message)    {
+        // Create the request body with the necessary parameters
+        var requestBody = new StringContent($"token={slackApiToken}&channel={channelId}&text={message}", Encoding.UTF8, "application/x-www-form-urlencoded");
+
+        // Make a POST request to the Slack API to post the message
+        var response = await httpClient.PostAsync(slackApiUrl, requestBody);        response.EnsureSuccessStatusCode();        var responseBody = await response.Content.ReadAsStringAsync();
+        // Check the response body or status code if needed
+    }    //Below Method genereting Cover letter by using Chat GPT    static string GenerateResumeAndCoverLetter(string jobPosting)    {        string GeneratedCoverLetter = "";        var openAI = new OpenAIAPI(ChatGptApiToken);        CompletionRequest completionRequest = new CompletionRequest();        completionRequest.Temperature = 0.9;        completionRequest.Prompt = jobPosting;        completionRequest.Model = OpenAI_API.Models.Model.DavinciText;        var completions = openAI.Completions.CreateCompletionsAsync(completionRequest);        if (completions.Result.Completions != null)        {            foreach (var completion in completions.Result.Completions)            {                GeneratedCoverLetter += completion.Text;            }        }        return GeneratedCoverLetter;    }}
