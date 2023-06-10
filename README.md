@@ -124,7 +124,7 @@ You can specify the posting frequency of job openings. Here the frequency is 1 h
 var schedule = new System.Threading.Timer(_ => PostRandomJobOpening(), null, TimeSpan.Zero, TimeSpan.FromHours(1));
 
 
-###Contributing
+### Contributing
 Contributions to the Job Posting Slack Bot are welcome! If you encounter any issues or have suggestions for improvements, please submit a pull request or open an issue on the GitHub repository.
 
 ## Acknowledgements
